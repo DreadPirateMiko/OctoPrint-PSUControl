@@ -39,3 +39,6 @@ Install the plugin using Plugin Manager from Settings
 - **"No access to /dev/mem. Try running as root!"**
 
     See [Access GPIO pins without root. No access to /dev/mem. Try running as root!](https://raspberrypi.stackexchange.com/questions/40105/access-gpio-pins-without-root-no-access-to-dev-mem-try-running-as-root)
+
+## Raspberry Pi Tactile switch instructions
+https://www.cl.cam.ac.uk/projects/raspberrypi/tutorials/robot/buttons_and_switches/
