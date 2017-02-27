@@ -37,9 +37,13 @@ class PSUControl(octoprint.plugin.StartupPlugin,
         self.idleTimeoutWaitTemp = 0
         self.enableSensing = False
         self.senseGPIOPin = 0
+        self.pushButton = False
+        self.pushButtonGPIOPin = 0
+        self.pushButtonSafeOffTime = 5
         self.isPSUOn = False
         self._noSensing_isPSUOn = False
         self._checkPSUTimer = None
+        self._checkPushbutton = None
         self._idleTimer = None
         self._waitForHeaters = False
         self._skipIdleTimer = False
@@ -71,6 +75,15 @@ class PSUControl(octoprint.plugin.StartupPlugin,
 
         self.senseGPIOPin = self._settings.get_int(["senseGPIOPin"])
         self._logger.debug("senseGPIOPin: %s" % self.senseGPIOPin)
+	
+        self.pushButton = self._settings.get_boolean(["pushButton"])
+        self._logger.debug("pushButton: %s" % self.pushButton)
+
+        self.pushButtonGPIOPin = self._settings.get_int(["pushButtonGPIOPin"])
+        self._logger.debug("pushButtonGPIOPin: %s" % self.pushButtonGPIOPin)
+
+        self.pushButtonSafeOffTime = self._settings.get_int(["pushButtonSafeOffTime"])
+        self._logger.debug("pushButtonSafeOffTime: %s" % self.pushButtonSafeOffTime)
 
         self.autoOn = self._settings.get_boolean(["autoOn"])
         self._logger.debug("autoOn: %s" % self.autoOn)
@@ -97,6 +110,9 @@ class PSUControl(octoprint.plugin.StartupPlugin,
         self._checkPSUTimer = RepeatedTimer(5.0, self.check_psu_state, None, None, True)
         self._checkPSUTimer.start()
 
+        self._checkPushbutton = RepeatedTimer(1.0, self.check_button_state, None, None, True)
+        self._checkPushbutton.start()
+
         self._start_idle_timer()
 
     def _configure_gpio(self):
@@ -108,6 +124,15 @@ class PSUControl(octoprint.plugin.StartupPlugin,
         GPIO.cleanup()
         GPIO.setmode(GPIO.BOARD)
         
+        if self.pushButton:
+            self._logger.info("Using pushButton to set PSU on/off state.")
+            self._logger.info("Configuring GPIO for pin %s" % self.pushButtonGPIOPin)
+            try:
+                GPIO.setup(self.pushButtonGPIOPin, GPIO.IN)
+            except (RuntimeError, ValueError) as e:
+                self._logger.error(e)
+
+		
         if self.enableSensing:
             self._logger.info("Using sensing to determine PSU on/off state.")
             self._logger.info("Configuring GPIO for pin %s" % self.senseGPIOPin)
@@ -155,7 +180,28 @@ class PSUControl(octoprint.plugin.StartupPlugin,
             self._stop_idle_timer()
 
         self._plugin_manager.send_plugin_message(self._identifier, dict(isPSUOn=self.isPSUOn))
-
+    
+    def check_button_state(self):
+        r = 0
+        try:
+            r = GPIO.input(self.pushButtonGPIOPin)
+        except (RuntimeError, ValueError) as e:
+            self._logger.error(e)
+        if r==1:
+            self._logger.debug("pushButton pressed")
+            if not self.isPSUOn:
+                self.turn_psu_on()
+            else:
+                timer = self.pushButtonSafeOffTime
+                while (timer > 0 and GPIO.input(self.pushButtonGPIOPin)):
+                    self._logger.info("Toggle Printer OFF in " + str(timer) + " seconds")
+                    timer -=1
+                    time.sleep(1)
+                if (timer == 0):
+                    self.turn_psu_off()
+                else:
+                    self._logger.info("Toggle Printer OFF aborted")
+    
     def _start_idle_timer(self):
         self._stop_idle_timer()
         
@@ -318,6 +364,9 @@ class PSUControl(octoprint.plugin.StartupPlugin,
             offSysCommand = '',
             enableSensing = False,
             senseGPIOPin = 0,
+            pushButton = False,
+            pushButtonGPIOPin = 0,
+            pushButtonSafeOffTime = 5,
             autoOn = False,
             autoOnTriggerGCodeCommands = "G0,G1,G2,G3,G10,G11,G28,G29,G32,M104,M109,M140,M190",
             powerOffWhenIdle = False,
@@ -330,6 +379,9 @@ class PSUControl(octoprint.plugin.StartupPlugin,
         old_onoffGPIOPin = self.onoffGPIOPin
         old_enableSensing = self.enableSensing
         old_senseGPIOPin = self.senseGPIOPin
+        old_pushButton = self.pushButton
+        old_pushButtonGPIOPin = self.pushButtonGPIOPin
+        old_pushButtonSafeOffTimen = self.pushButtonSafeOffTime
         old_switchingMethod = self.switchingMethod
         
         octoprint.plugin.SettingsPlugin.on_settings_save(self, data)
@@ -343,6 +395,9 @@ class PSUControl(octoprint.plugin.StartupPlugin,
         self.offSysCommand = self._settings.get(["offSysCommand"])
         self.enableSensing = self._settings.get_boolean(["enableSensing"])
         self.senseGPIOPin = self._settings.get_int(["senseGPIOPin"])
+        self.pushButton = self._settings.get_boolean(["pushButton"])
+        self.pushButtonGPIOPin = self._settings.get_int(["pushButtonGPIOPin"])
+        self.pushButtonSafeOffTime = self._settings.get_int(["pushButtonSafeOffTime"])
         self.autoOn = self._settings.get_boolean(["autoOn"])
         self.autoOnTriggerGCodeCommands = self._settings.get(["autoOnTriggerGCodeCommands"])
         self._autoOnTriggerGCodeCommandsArray = self.autoOnTriggerGCodeCommands.split(',')
@@ -402,21 +457,21 @@ class PSUControl(octoprint.plugin.StartupPlugin,
     def get_update_information(self):
         return dict(
             psucontrol=dict(
-                displayName="PSU Control",
+                displayName="PSU Control with push button",
                 displayVersion=self._plugin_version,
 
                 # version check: github repository
                 type="github_release",
-                user="kantlivelong",
+                user="DreadPirateMiko",
                 repo="OctoPrint-PSUControl",
                 current=self._plugin_version,
 
                 # update method: pip w/ dependency links
-                pip="https://github.com/kantlivelong/OctoPrint-PSUControl/archive/{target_version}.zip"
+                pip="https://github.com/DreadPirateMiko/OctoPrint-PSUControl/archive/{target_version}.zip"
             )
         )
 
-__plugin_name__ = "PSU Control"
+__plugin_name__ = "PSU Control with push button"
 
 def __plugin_load__():
     global __plugin_implementation__

@@ -1,4 +1,32 @@
 <form class="form-horizontal">
+	
+    <h4>Push Button Switching</h4>
+	<div class="control-group">
+        <div class="controls">
+            <label class="checkbox">
+            <input type="checkbox" data-bind="checked: settings.plugins.psucontrol.pushButton"> Set PSU on/off state via GPIO using push button switch
+            </label>
+        </div>
+    </div>
+    <!-- ko if: settings.plugins.psucontrol.pushButton() -->
+    <div class="control-group">
+        <label class="control-label">Button GPIO Pin</label>
+        <div class="controls">
+            <input type="text" class="input-mini" data-bind="value: settings.plugins.psucontrol.pushButtonGPIOPin">
+        </div>
+    </div>
+    <div class="control-group">
+        <label class="control-label">Safe off time</label>
+        <div class="controls">
+            <div class="input-append">
+                <input type="number" class="input-mini text-right" data-bind="value: settings.plugins.psucontrol.pushButtonSafeOffTime">
+                <span class="add-on">sec</span>
+            </div>
+			(require to push the button for x seconds before shutdown)
+        </div>
+    </div>
+    <!-- /ko -->
+    <br />
 
     <h4>Switching</h4>
     <div class="control-group">
