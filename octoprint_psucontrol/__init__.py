@@ -309,9 +309,11 @@ class PSUControl(octoprint.plugin.StartupPlugin,
          
             time.sleep(0.1)
             self.check_psu_state()
+            self._printer.connect()
         
     def turn_psu_off(self):
         if self.switchingMethod == 'GCODE' or self.switchingMethod == 'GPIO' or self.switchingMethod == 'SYSTEM':
+            self._printer.disconnect()
             self._logger.info("Switching PSU Off")
             if self.switchingMethod == 'GCODE':
                 self._logger.debug("Switching PSU Off Using GCODE: %s" % self.offGCodeCommand)
